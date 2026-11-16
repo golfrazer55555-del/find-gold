@@ -5,12 +5,13 @@ body {
   color: #f6f0dc; font-family: 'Galmuri11', sans-serif;
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none;
 }
-#wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+#stage { position: fixed; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; overflow: hidden; }
+#wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 #game { image-rendering: pixelated; image-rendering: crisp-edges; display: block; background: #140c10; touch-action: none; }
 #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #f8d838; background: #140c10; }
 
 /* 터치 조작 */
-#touch { position: fixed; inset: 0; pointer-events: none; display: none; }
+#touch { position: absolute; inset: 0; pointer-events: none; display: none; }
 body.touch #touch { display: block; }
 #joy {
   position: absolute; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom));
@@ -34,18 +35,9 @@ body.touch #touch { display: block; }
 #btns [data-k="b"] { right: 88px; bottom: 0; }
 #btns [data-k="c"] { right: 70px; bottom: 82px; }
 
-/* 세로 화면(모바일): 가로로 돌리라는 안내 */
-#rotate {
-  position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; align-items: center; justify-content: center;
-  background: #140c10; color: #f6f0dc; text-align: center; gap: 6px;
-}
-#rotate p { font-size: 20px; margin: 18px 0 0; } #rotate b { color: #f8d838; font-weight: normal; }
-#rotate small { font-size: 13px; color: #b98445; }
-#rotate .phone { width: 54px; height: 90px; border: 4px solid #f8d838; border-radius: 8px; animation: turn 2s ease-in-out infinite; }
-@keyframes turn { 0%, 25% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
-body.touch.portrait #rotate { display: flex; }
-body.touch.portrait #touch { display: none; }
+/* 세로로 든 휴대폰: #stage 전체를 90도 돌려 항상 가로 화면으로 보여 준다 (main.js) */
+body.rot #joy, body.rot #btns { margin: 6px; }
 
 /* 가로 화면 터치: 반투명하게 */
-body.touch:not(.portrait) #joy { opacity: .8; }
-body.touch:not(.portrait) #btns button { opacity: .85; }
+body.touch #joy { opacity: .85; }
+body.touch #btns button { opacity: .9; }

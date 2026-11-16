@@ -415,14 +415,8 @@ class BagScene extends G.Menu {
         { label: `해독제 쓰기 (${S.inv.antivenom}개)`, disabled: !S.poisoned || !S.inv.antivenom, why: S.poisoned ? '해독제가 없다!' : '독에 걸리지 않았다.',
           act: () => { S.inv.antivenom--; S.poisoned = false; G.audio.sfx('ok'); this.flash('해독제를 마셨다. 독이 가라앉는다.'); } },
         { label: '야영하기 (8시간 잠)', disabled: G.inTown(S.x, S.y), why: '마을에서는 호텔을 이용하자.', act: () => this.camp() },
-        { label: `소리: ${G.audio.on ? '켜짐' : '꺼짐'}`, act: () => { G.audio.on = !G.audio.on; G.opts.sound = G.audio.on; G.saveOpts(); } },
         { label: '조작법 · 도움말', act: () => G.showHelp() },
-        { label: '게임 저장하기', act: () => { if (G.save()) { G.audio.sfx('ok'); this.flash(`저장했다. (${G.day()}일 ${G.clock()})`); } else this.flash('저장에 실패했다. (브라우저 저장소를 확인하세요)', 'r'); } },
-        { label: '저장하고 나가기', act: () => {
-          if (!G.save()) { this.flash('저장에 실패했다. (브라우저 저장소를 확인하세요)', 'r'); return; }
-          G.audio.sfx('ok'); G.ui.reset(new TitleScene()); G.titleMsg = '저장했습니다. 「이어하기」로 계속할 수 있습니다.';
-        } },
-        { label: '저장하지 않고 나가기', act: () => G.ask('저장하지 않고 타이틀로 나갈까? 마지막 저장 이후의 진행은 사라진다.', [{ label: '나간다', act: () => G.ui.reset(new TitleScene()) }, { label: '취소', act: () => {} }]) },
+        { label: '메뉴 (저장 · 나가기 · 소리)', right: 'ESC', act: () => G.ui.push(new SystemMenu()) },
         { label: '닫기', act: () => G.ui.pop() }
       ]
     });
@@ -454,6 +448,65 @@ class BagScene extends G.Menu {
 }
 G.BagScene = BagScene;
 
+// =============== 메뉴 (저장 · 불러오기 · 소리 · 나가기) ===============
+const volItems = () => [
+  { label: '효과음 크기', get val() { return G.opts.sfxVol; }, set: v => { G.opts.sfxVol = v; G.saveOpts(); G.audio.sfx('coin'); } },
+  { label: '음악 크기', get val() { return G.opts.musicVol; }, set: v => { G.opts.musicVol = v; G.saveOpts(); } }
+];
+G.loadAndPlay = function (slot) {
+  if (slot === null || slot === undefined || !G.load(slot)) { G.audio.sfx('no'); return; }
+  G.ui.reset(new WorldScene()); G.toast(`${G.slotName(slot)}: ${G.day()}일 ${G.clock()}부터 다시 시작`, 'Y');
+};
+G.slotMenu = function (mode, hud) {
+  const saving = mode === 'save';
+  const m = new G.Menu({
+    title: saving ? '어느 슬롯에 저장할까?' : '불러올 저장 파일', hud,
+    text: saving ? '이미 저장된 슬롯을 고르면 덮어쓴다.' : '「자동 저장」은 호텔에서 자거나 건물에 들어갈 때 저장된다.',
+    items: () => (saving ? G.SLOTS : G.allSlots()).map(sl => {
+      const d = G.slotDetail(sl);
+      return {
+        label: `${G.slotName(sl)}: ${d ? d.label : '비어 있음'}`, right: d ? d.when : '', disabled: !saving && !d, why: '비어 있는 슬롯이다.',
+        act: () => {
+          if (!saving) { const go = () => G.loadAndPlay(sl); if (G.S && G.ui.stack.some(x => x instanceof WorldScene)) G.ask(`${G.slotName(sl)}을(를) 불러올까? 저장하지 않은 진행은 사라진다.`, [{ label: '불러온다', act: go }, { label: '취소', act: () => {} }]); else go(); return; }
+          const doSave = () => { if (G.save(sl)) { G.audio.sfx('ok'); m.flash(`${G.slotName(sl)}에 저장했다. (${G.day()}일 ${G.clock()})`); } else m.flash('저장에 실패했다. 브라우저 저장소를 확인하세요.', 'r'); };
+          if (d) G.ask(`${G.slotName(sl)}의 저장(${d.label})을 덮어쓸까?`, [{ label: '덮어쓴다', act: doSave }, { label: '취소', act: () => {} }]); else doSave();
+        }
+      };
+    }).concat([{ label: '돌아가기', act: () => G.ui.pop() }])
+  });
+  return m;
+};
+G.settingsMenu = () => new G.Menu({
+  title: '설정', hud: false, text: '좌우 방향키(또는 ◀ ▶ 탭)로 소리 크기를 조절한다.',
+  items: () => volItems().concat([{ label: '돌아가기', act: () => G.ui.pop() }])
+});
+class SystemMenu extends G.Menu {
+  constructor() {
+    const below = G.ui.top();
+    const canSave = below instanceof WorldScene || (below instanceof G.Menu && !(below instanceof SystemMenu));
+    super({
+      title: '메뉴', hud: true,
+      text: () => { const ls = G.latestSlot(); return `${G.day()}일 ${G.clock()} · 마지막 저장: ${ls === null ? '없음' : G.slotName(ls) + ' (' + G.saveInfo(ls) + ')'}`; },
+      items: () => {
+        const S = G.S, slot = S.slot || 1;
+        return [
+          { label: '게임으로 돌아가기', act: () => G.ui.pop() },
+          { label: '저장하기', right: '슬롯 1~3', disabled: !canSave, why: '지금은 저장할 수 없다.', act: () => G.ui.push(G.slotMenu('save', true)) },
+          { label: '불러오기', disabled: !G.hasSave(), why: '저장된 게임이 없다.', act: () => G.ui.push(G.slotMenu('load', true)) },
+          { label: '저장하고 나가기', right: G.slotName(slot), disabled: !canSave, why: '지금은 저장할 수 없다.', act: () => {
+            if (!G.save(slot)) { this.flash('저장에 실패했다. 브라우저 저장소를 확인하세요.', 'r'); return; }
+            G.audio.sfx('ok'); G.ui.reset(new TitleScene()); G.titleMsg = `${G.slotName(slot)}에 저장했습니다. 「이어하기」로 계속할 수 있습니다.`;
+          } },
+          ...volItems(),
+          { label: '조작법 · 도움말', act: () => G.showHelp() },
+          { label: '저장하지 않고 나가기', act: () => G.ask('저장하지 않고 타이틀로 나갈까? 마지막 저장 이후의 진행은 사라진다.', [{ label: '나간다', act: () => G.ui.reset(new TitleScene()) }, { label: '취소', act: () => {} }]) }
+        ];
+      }
+    });
+  }
+}
+G.SystemMenu = SystemMenu;
+
 // =============== 지도 ===============
 class MapScene {
   constructor() {
@@ -467,7 +520,7 @@ class MapScene {
     }
     this.mini = c;
   }
-  update(dt) { this.t += dt; if (this.t > 0.2 && (I.hit('a') || I.hit('b') || I.hit('m') || I.tap())) { G.audio.sfx('sel'); G.ui.pop(); } }
+  update(dt) { this.t += dt; if (this.t > 0.2 && (I.hit('a') || I.hit('b') || I.hit('m') || I.hit('menu') || I.tap())) { G.audio.sfx('sel'); G.ui.pop(); } }
   draw(ctx) {
     const S = G.S, w = G.world, ox = 6, oy = 14;
     G.rect(ctx, 0, 0, G.W, G.H, 'B');
@@ -517,14 +570,15 @@ class TitleScene {
     const has = G.hasSave();
     return [
       { label: '새 게임', act: () => G.startNew() },
-      { label: has && G.saveInfo() ? `이어하기 (${G.saveInfo()})` : '이어하기', disabled: !has, act: () => { if (G.load()) { G.ui.reset(new WorldScene()); G.toast(`${G.day()}일째, 다시 사막으로.`, 'Y'); } } },
-      { label: '조작법 · 도움말', act: () => G.showHelp() },
-      { label: `소리: ${G.audio.on ? '켜짐' : '꺼짐'}`, act: () => { G.audio.on = !G.audio.on; G.opts.sound = G.audio.on; G.saveOpts(); if (!G.audio.on) G.audio.stopMusic(); else { G.audio.init(); G.audio.music('title'); } } }
+      { label: has ? `이어하기 (${G.saveInfo()})` : '이어하기', disabled: !has, act: () => G.loadAndPlay(G.latestSlot()) },
+      { label: '불러오기', disabled: !has, act: () => G.ui.push(G.slotMenu('load', false)) },
+      { label: '설정 (소리 크기)', act: () => G.ui.push(G.settingsMenu()) },
+      { label: '조작법 · 도움말', act: () => G.showHelp() }
     ];
   }
   update(dt) {
     this.t += dt;
-    if (!this.music && G.audio.ctx && G.audio.on && G.ui.top() === this) { this.music = true; G.audio.music('title'); }
+    if (!this.music && G.audio.ctx && G.ui.top() === this) { this.music = true; G.audio.music('title'); }
     const it = this.items();
     if (I.hit('up')) { this.cur = (this.cur + it.length - 1) % it.length; G.audio.sfx('sel'); }
     if (I.hit('down')) { this.cur = (this.cur + 1) % it.length; G.audio.sfx('sel'); }
@@ -553,10 +607,10 @@ class TitleScene {
     G.px(ctx, 'DESERT GOLD - 1880', 192 - G.pxW('DESERT GOLD - 1880', 2) / 2, 66, 'n', 2);
     const it = this.items(); this.rows = [];
     it.forEach((x, i) => {
-      const y = 132 + i * 17, sel = i === this.cur;
+      const y = 126 + i * 15, sel = i === this.cur;
       if (sel) { G.rect(ctx, 110, y - 2, 164, 15, 'B'); ctx.drawImage(G.ART.icon.cursor, 116, y + 2); }
       G.text(ctx, x.label, 192, y, x.disabled ? 'h' : sel ? 'Y' : 'm', 'm', 'center');
-      this.rows.push({ y: y - 3, h: 17, i });
+      this.rows.push({ y: y - 1, h: 15, i });
     });
     if (G.titleMsg) { G.text(ctx, G.titleMsg, 192, G.H - 13, 'Y', 's', 'center'); if (this.t > 5) G.titleMsg = null; }
     else G.text(ctx, '서부 생존 어드벤처', 6, G.H - 12, 'S', 's');
@@ -575,17 +629,17 @@ G.startNew = function () {
     '그가 남긴 지도는 뼈다귀 모양의 가죽 여섯 조각으로 찢겨 흩어졌다고 한다. 살롱의 도박판, 버려진 광산, 사막의 누군가가 그 조각을 갖고 있다.',
     '당신의 주머니엔 단돈 $120. 잡화점에서 장비를 사고, 우물에서 물을 채우고, 사막으로 나가라.',
     '목표: 하스켈의 광산을 찾아 시금소에 소유권을 등록하고, 은행에 $10,000를 모아라.\n사막은 무자비하다. 물과 식량, 뱀과 강도를 조심하라.'
-  ], () => G.toast(I.touchMode ? '가방 버튼: 소지품·지도·도움말' : 'B/ESC: 가방 · M: 지도 · F: 사격', 'Y'));
+  ], () => G.toast(I.touchMode ? '오른쪽 위 「메뉴」: 저장·나가기·소리' : 'ESC: 메뉴 · X/I: 가방 · M: 지도 · F: 사격', 'Y'));
 };
 G.showHelp = function () {
   G.say([
-    '【조작법 — 컴퓨터】\n이동: 방향키 / WASD\n행동·확인: 스페이스 / 엔터 / Z\n가방·뒤로: ESC / X / I\n사격: F / C   지도: M   재장전: R',
-    '【조작법 — 모바일】\n휴대폰을 가로로 들고, 왼쪽 조이스틱으로 이동, 오른쪽 버튼(행동·가방·사격)을 누른다. 메뉴는 화면을 직접 탭해도 된다.',
+    '【조작법 — 컴퓨터】\n이동: 방향키 / WASD   행동·확인: 스페이스 / 엔터 / Z\n메뉴(저장·나가기·소리): ESC / P 또는 오른쪽 위 「메뉴」 클릭\n가방·뒤로: X / I / B   사격: F / C   지도: M   재장전: R',
+    '【조작법 — 모바일】\n화면은 항상 가로로 표시된다. 왼쪽 조이스틱으로 이동, 오른쪽 버튼(행동·가방·사격)을 누른다. 오른쪽 위 「메뉴」에서 저장·나가기·소리 조절. 메뉴 항목은 직접 탭해도 된다.',
     '【생존】\n물은 시간이 지날수록 줄고, 더울수록 빨리 준다(화씨 100도 이상 주의). 물이나 식량이 바닥나면 체력이 줄어든다. 우물과 강에서 물을 채울 수 있다.',
     '【돈 벌기】\n살롱 포커, 강가 사금 채취(팬), 광산 채굴(곡괭이), 강도 현상금. 금 원석은 시금소에서 판다. 강도에게 털리지 않게 은행에 맡기자.',
     '【위험】\n방울뱀에 물리면 독 — 해독제나 의사 치료가 없으면 죽는다. 강도는 리볼버로 맞서거나, 도망치거나, 돈을 내준다. 광산은 무너질 수 있다.',
     '【지도 조각】\n6개의 뼈 지도 조각: 포커(2), 버려진 광산 깊은 곳(2, 랜턴 필요), 늙은 탐광자(1), 검은 모자 갱단 두목(1). 조각이 많을수록 지도의 붉은 원이 좁아진다.',
-    '【저장】\n가방 메뉴의 「게임 저장하기」「저장하고 나가기」로 언제든 저장할 수 있다. 호텔에서 잘 때와 건물에 들어갈 때도 자동 저장된다. 죽으면 마지막 저장에서 다시 시작한다.\n마을 건물은 대부분 08~18시 영업.'
+    '【저장】\n「메뉴」에서 슬롯 3개 중 하나에 언제든 저장하거나, 「저장하고 나가기」로 저장 후 타이틀로 나갈 수 있다. 호텔에서 잘 때와 건물에 들어갈 때도 자동 저장된다. 죽으면 마지막 저장에서 다시 시작한다.\n마을 건물은 대부분 08~18시 영업.'
   ]);
 };
 
@@ -594,7 +648,8 @@ class GameOverScene {
   constructor(cause) { this.opaque = true; this.cause = cause; this.cur = 0; this.t = 0; this.rows = []; G.audio.stopMusic(); G.audio.sfx('lose'); this.day = G.S ? G.day() : 1; this.st = G.S ? G.S.stats : { oz: 0, earned: 0 }; }
   items() {
     return [
-      { label: '마지막 저장에서 다시', disabled: !G.hasSave(), act: () => { if (G.load()) G.ui.reset(new WorldScene()); } },
+      { label: '마지막 저장에서 다시', disabled: !G.hasSave(), act: () => G.loadAndPlay(G.latestSlot()) },
+      { label: '불러오기', disabled: !G.hasSave(), act: () => G.ui.push(G.slotMenu('load', false)) },
       { label: '새 게임', act: () => G.startNew() },
       { label: '타이틀로', act: () => G.ui.reset(new TitleScene()) }
     ];

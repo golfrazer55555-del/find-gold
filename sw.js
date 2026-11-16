@@ -1,5 +1,5 @@
 // 오프라인 실행을 위한 서비스 워커
-const CACHE = 'desert-gold-v2';
+const CACHE = 'desert-gold-v3';
 const FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest',
   'js/core.js', 'js/art.js', 'js/input.js', 'js/world.js', 'js/state.js', 'js/ui.js',

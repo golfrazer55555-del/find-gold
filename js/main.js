@@ -5,17 +5,23 @@ const cv = G.cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
 cv.width = G.W; cv.height = G.H; ctx.imageSmoothingEnabled = false;
 
+const stage = document.getElementById('stage');
 G.resize = function () {
-  const vw = window.innerWidth, vh = window.innerHeight, dpr = window.devicePixelRatio || 1;
-  const touch = G.input.touchMode, portrait = vh > vw;
+  const iw = window.innerWidth, ih = window.innerHeight, dpr = window.devicePixelRatio || 1;
+  const touch = G.input.touchMode;
+  // 세로로 든 터치 기기는 화면 전체를 90도 돌려서 항상 가로로 보여 준다
+  const rot = G.rotated = touch && ih > iw;
+  const st = stage.style;
+  if (rot) { st.width = ih + 'px'; st.height = iw + 'px'; st.transform = `translate(${iw}px, 0) rotate(90deg)`; }
+  else { st.width = iw + 'px'; st.height = ih + 'px'; st.transform = ''; }
+  document.body.classList.toggle('rot', rot);
+  const vw = rot ? ih : iw, vh = rot ? iw : ih;
   const availW = touch ? Math.max(vw * 0.6, vw - 280) : vw, availH = vh;
   let s = Math.min(availW * dpr / G.W, availH * dpr / G.H);
   if (s >= 2 && !touch) s = Math.floor(s);
   cv.style.width = (G.W * s / dpr) + 'px'; cv.style.height = (G.H * s / dpr) + 'px';
-  document.body.classList.toggle('portrait', portrait);
-  G.rotateWait = touch && portrait;
 };
-// 모바일: 첫 터치 때 전체 화면 + 가로 고정 시도 (지원하는 기기에서만)
+// 지원하는 기기(안드로이드 등)에서는 첫 터치 때 전체 화면 + 실제 가로 고정도 시도
 G.lockLandscape = function () {
   if (G.lockTried || !G.input.touchMode) return; G.lockTried = true;
   const el = document.documentElement;
@@ -35,8 +41,8 @@ function frame(now) {
     if (G.pendingDeath && !(G.ui.top() instanceof G.GameOverScene)) {
       const c = G.pendingDeath; G.ui.reset(new G.GameOverScene(c)); G.pendingDeath = null; G.dead = true;
     }
-    if (G.rotateWait) { G.input.taps.length = 0; G.input.pressed.clear(); }
-    else { G.ui.update(dt); G.updateToasts(dt); }
+    G.menuInput();
+    G.ui.update(dt); G.updateToasts(dt);
     ctx.fillStyle = '#140c10'; ctx.fillRect(0, 0, G.W, G.H);
     G.ui.draw(ctx);
   } catch (e) { console.error(e); }

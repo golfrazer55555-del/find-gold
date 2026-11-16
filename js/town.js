@@ -126,7 +126,7 @@ B.hotel = () => shopMenu('hotel', '호텔', '"방 있소. 아침 6시에 깨워 
       S.health = Math.min(100, S.health + 35); G.save();
       G.ui.pop(); G.say([`푹 잤다. ${G.day()}일째 아침이 밝았다.`, '(게임이 저장되었다)']);
     }) },
-    { label: '게임 저장만 하기', right: '무료', act: () => { G.save(); m.flash('저장했다.'); } },
+    { label: '게임 저장만 하기 (자동 저장)', right: '무료', act: () => { G.save(); m.flash('자동 저장 슬롯에 저장했다.'); } },
     { label: '나가기', act: () => G.ui.pop() }
   ];
 });

@@ -167,25 +167,34 @@ G.dirName = function (dx, dy) {
 
 // ---- 소리 (WebAudio 칩튠) ----
 G.audio = {
-  ctx: null, on: true, master: null, musicTimer: null,
+  ctx: null, master: null, musicTimer: null,
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-      this.master = this.ctx.createGain(); this.master.gain.value = 0.22; this.master.connect(this.ctx.destination);
+      this.master = this.ctx.createGain(); this.master.gain.value = 0.3; this.master.connect(this.ctx.destination);
+      this.sfxBus = this.ctx.createGain(); this.sfxBus.connect(this.master);
+      this.musBus = this.ctx.createGain(); this.musBus.connect(this.master);
+      this.applyVol();
     } catch (e) { this.ctx = null; }
   },
-  tone(freq, dur, type = 'square', vol = 0.3, slide = 0, delay = 0) {
-    if (!this.ctx || !this.on) return;
+  vol(bus) { const v = (G.opts && G.opts[bus === 'm' ? 'musicVol' : 'sfxVol']); return v === undefined ? 0.7 : v / 10; },
+  applyVol() {
+    if (!this.ctx) return;
+    const curve = v => v * v;
+    this.sfxBus.gain.value = curve(this.vol('s')); this.musBus.gain.value = curve(this.vol('m'));
+  },
+  tone(freq, dur, type = 'square', vol = 0.3, slide = 0, delay = 0, bus = 's') {
+    if (!this.ctx || this.vol(bus) <= 0) return;
     const t = this.ctx.currentTime + delay;
     const o = this.ctx.createOscillator(), g = this.ctx.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
+    o.connect(g); g.connect(bus === 'm' ? this.musBus : this.sfxBus); o.start(t); o.stop(t + dur + 0.05);
   },
   noise(dur, vol = 0.3, delay = 0, freq = 0) {
-    if (!this.ctx || !this.on) return;
+    if (!this.ctx || this.vol('s') <= 0) return;
     const t = this.ctx.currentTime + delay;
     const len = Math.floor(this.ctx.sampleRate * dur);
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = buf.getChannelData(0);
@@ -193,10 +202,10 @@ G.audio = {
     const s = this.ctx.createBufferSource(); s.buffer = buf;
     const g = this.ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     if (freq) { const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; s.connect(f); f.connect(g); } else s.connect(g);
-    g.connect(this.master); s.start(t);
+    g.connect(this.sfxBus); s.start(t);
   },
   sfx(n) {
-    if (!this.ctx || !this.on) return;
+    if (!this.ctx || this.vol('s') <= 0) return;
     const T = this.tone.bind(this), N = this.noise.bind(this);
     switch (n) {
       case 'sel': T(660, 0.04, 'square', 0.12); break;
@@ -221,7 +230,7 @@ G.audio = {
   },
   // 짧은 서부풍 루프 음악
   music(name) {
-    this.stopMusic(); if (!this.ctx || !this.on) return;
+    this.stopMusic(); if (!this.ctx) return;
     const A = 220, n = s => A * Math.pow(2, s / 12);
     const mel = name === 'title'
       ? [0, null, 7, 12, 10, null, 7, 5, 3, null, 5, 7, 0, null, null, null, 0, null, 7, 12, 15, null, 14, 12, 10, null, 12, 7, 12, null, null, null]
@@ -229,9 +238,8 @@ G.audio = {
     const bass = [-12, null, -5, null, -12, null, -5, null, -9, null, -2, null, -12, null, -5, null];
     let i = 0;
     const step = () => {
-      if (!this.on) return;
-      const m = mel[i % mel.length]; if (m !== null) this.tone(n(m), 0.2, 'square', 0.07);
-      const b = bass[i % bass.length]; if (b !== null) this.tone(n(b), 0.25, 'triangle', 0.16);
+      const m = mel[i % mel.length]; if (m !== null) this.tone(n(m), 0.2, 'square', 0.07, 0, 0, 'm');
+      const b = bass[i % bass.length]; if (b !== null) this.tone(n(b), 0.25, 'triangle', 0.16, 0, 0, 'm');
       i++;
     };
     this.musicTimer = setInterval(step, 190);

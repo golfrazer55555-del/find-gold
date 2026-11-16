@@ -8,7 +8,7 @@ const I = G.input = {
 const KEY = {
   ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
   Space: 'a', Enter: 'a', NumpadEnter: 'a', KeyZ: 'a', KeyE: 'a',
-  Escape: 'b', KeyX: 'b', Backspace: 'b', KeyI: 'b', Tab: 'b',
+  Escape: 'menu', KeyP: 'menu', KeyX: 'b', Backspace: 'b', KeyI: 'b', Tab: 'b', KeyB: 'b',
   KeyF: 'c', KeyC: 'c', KeyM: 'm', KeyR: 'r'
 };
 const NAV = { up: 1, down: 1, left: 1, right: 1 };
@@ -41,6 +41,7 @@ I.endFrame = function () { I.pressed.clear(); I.taps.length = 0; I.mouse.clicked
 
 I.toGame = function (cx, cy) {
   const r = G.cv.getBoundingClientRect();
+  if (G.rotated) return { x: (cy - r.top) / r.height * G.W, y: (r.right - cx) / r.width * G.H };
   return { x: (cx - r.left) / r.width * G.W, y: (cy - r.top) / r.height * G.H };
 };
 I.setup = function (canvas) {
@@ -63,6 +64,7 @@ I.setup = function (canvas) {
   const setJoy = (cx, cy) => {
     const r = joy.getBoundingClientRect(); const R = r.width / 2;
     let dx = (cx - (r.left + R)) / R, dy = (cy - (r.top + R)) / R;
+    if (G.rotated) { const t = dx; dx = dy; dy = -t; }
     const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; }
     const dead = 0.18; const mm = Math.hypot(dx, dy);
     I.joy.x = mm < dead ? 0 : dx; I.joy.y = mm < dead ? 0 : dy;

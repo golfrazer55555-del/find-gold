@@ -117,26 +117,54 @@ G.wealthCheck = function () {
 // ---- 저장 / 불러오기 ----
 function packBits(arr) { const out = new Uint8Array(Math.ceil(arr.length / 8)); for (let i = 0; i < arr.length; i++) if (arr[i]) out[i >> 3] |= 1 << (i & 7); let s = ''; for (const b of out) s += String.fromCharCode(b); return btoa(s); }
 function unpackBits(str, n) { const s = atob(str); const a = new Uint8Array(n); for (let i = 0; i < n; i++) if (s.charCodeAt(i >> 3) & (1 << (i & 7))) a[i] = 1; return a; }
-G.save = function () {
+// 저장 슬롯: 'auto'(자동 저장) + 1~3 (수동)
+G.SLOTS = [1, 2, 3];
+const slotKey = slot => (slot === 'auto' ? SAVE_KEY : SAVE_KEY + '-s' + slot);
+G.save = function (slot = 'auto') {
   try {
-    const S = G.S; const o = Object.assign({}, S); o.explored = packBits(S.explored);
-    localStorage.setItem(SAVE_KEY, JSON.stringify(o)); return true;
+    const S = G.S; if (slot !== 'auto') S.slot = slot;
+    const o = Object.assign({}, S); o.explored = packBits(S.explored); o.savedAt = Date.now();
+    localStorage.setItem(slotKey(slot), JSON.stringify(o)); return true;
   } catch (e) { return false; }
 };
-G.saveInfo = function () {
-  try { const o = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!o) return ''; const m = o.t % 1440; return `${Math.floor(o.t / 1440) + 1}일 ${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; } catch (e) { return ''; }
+G.readSlot = slot => { try { return JSON.parse(localStorage.getItem(slotKey(slot))); } catch (e) { return null; } };
+G.allSlots = () => ['auto'].concat(G.SLOTS);
+G.latestSlot = function () {
+  let best = null, bt = -1;
+  for (const s of G.allSlots()) { const o = G.readSlot(s); if (o && (o.savedAt || 0) > bt) { bt = o.savedAt || 0; best = s; } }
+  return best;
 };
-G.hasSave = () => { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } };
-G.load = function () {
+G.hasSave = () => G.latestSlot() !== null;
+G.slotName = slot => (slot === 'auto' ? '자동 저장' : `슬롯 ${slot}`);
+G.saveInfo = function (slot) {
+  if (slot === undefined) slot = G.latestSlot();
+  const o = slot === null ? null : G.readSlot(slot); if (!o) return '';
+  const m = o.t % 1440;
+  return `${Math.floor(o.t / 1440) + 1}일 ${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+G.slotDetail = function (slot) {
+  const o = G.readSlot(slot); if (!o) return null;
+  const pc = (o.pieces || []).reduce((a, b) => a + b, 0);
+  let when = '';
+  if (o.savedAt) { const d = new Date(o.savedAt); when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+  return { label: `${G.saveInfo(slot)} · $${G.money(o.cash + o.bank)} · 조각 ${pc}/6`, when };
+};
+G.load = function (slot) {
+  if (slot === undefined) slot = G.latestSlot();
   try {
-    const o = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!o) return false;
+    const o = G.readSlot(slot); if (!o) return false;
     G.world = G.genWorld(o.seed);
     o.explored = unpackBits(o.explored, G.world.w * G.world.h);
-    G.S = o; G.dead = false; G.pendingDeath = null; return true;
+    G.S = o; G.dead = false; G.pendingDeath = null; G.toasts = []; return true;
   } catch (e) { console.warn(e); return false; }
 };
-G.deleteSave = () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} };
-G.opts = { sound: true };
-G.loadOpts = () => { try { Object.assign(G.opts, JSON.parse(localStorage.getItem(OPT_KEY)) || {}); } catch (e) {} G.audio.on = G.opts.sound; };
-G.saveOpts = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(G.opts)); } catch (e) {} };
+G.deleteSave = slot => { try { localStorage.removeItem(slotKey(slot)); } catch (e) {} };
+
+// 설정 (소리 크기 0~10)
+G.opts = { sfxVol: 7, musicVol: 5 };
+G.loadOpts = () => {
+  try { const o = JSON.parse(localStorage.getItem(OPT_KEY)) || {}; if (o.sound === false) { o.sfxVol = 0; o.musicVol = 0; } delete o.sound; Object.assign(G.opts, o); } catch (e) {}
+  G.audio.applyVol();
+};
+G.saveOpts = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(G.opts)); } catch (e) {} G.audio.applyVol(); };
 })();

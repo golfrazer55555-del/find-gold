@@ -37,10 +37,10 @@ G.drawHUD = function (ctx) {
   const A = G.ART.icon; const h = G.hour(); const blink = (Date.now() / 400 | 0) % 2;
   let x = 4;
   ctx.drawImage(h >= 6 && h < 19 ? A.sun : A.moon, x, 5); x += 8;
-  x += G.text(ctx, `${G.day()}일 ${G.clock()}`, x, 3, 'w', 's') + 7;
+  x += G.text(ctx, `${G.day()}일 ${G.clock()}`, x, 3, 'w', 's') + 5;
   const tp = G.temp(); ctx.drawImage(A.therm, x, 4); x += 5;
-  x += G.text(ctx, `${tp}°F`, x, 3, tp >= 105 ? 'r' : tp >= 95 ? 'o' : 'w', 's') + 7;
-  x += G.text(ctx, '$' + G.money(S.cash), x, 3, 'Y', 's') + 7;
+  x += G.text(ctx, `${tp}°F`, x, 3, tp >= 105 ? 'r' : tp >= 95 ? 'o' : 'w', 's') + 5;
+  x += G.text(ctx, '$' + G.money(S.cash), x, 3, 'Y', 's') + 5;
   ctx.drawImage(A.heart, x, 5); x += 9;
   const hc = S.poisoned ? 'p' : S.health > 60 ? 'g' : S.health > 30 ? 'Y' : 'r';
   G.rect(ctx, x, 5, 32, 7, 'k'); G.rect(ctx, x + 1, 6, 30, 5, 'K');
@@ -49,13 +49,34 @@ G.drawHUD = function (ctx) {
   if (S.poisoned) { if (blink) ctx.drawImage(A.skull, x, 5); x += 8; }
   x += 3;
   ctx.drawImage(A.food, x, 5); x += 9;
-  x += G.text(ctx, String(Math.floor(S.food)), x, 3, S.food <= 3 ? 'r' : 'w', 's') + 6;
+  x += G.text(ctx, String(Math.floor(S.food)), x, 3, S.food <= 3 ? 'r' : 'w', 's') + 4;
   ctx.drawImage(A.drop, x, 5); x += 8;
   const low = S.water < G.waterCap() * 0.25;
-  x += G.text(ctx, `${Math.floor(S.water)}/${G.waterCap()}`, x, 3, low ? (blink ? 'r' : 'o') : 'v', 's') + 6;
-  if (S.inv.revolver) { ctx.drawImage(A.bullet, x, 5); x += 6; x += G.text(ctx, String(S.bullets), x, 3, 'w', 's') + 6; }
+  x += G.text(ctx, `${Math.floor(S.water)}/${G.waterCap()}`, x, 3, low ? (blink ? 'r' : 'o') : 'v', 's') + 4;
+  if (S.inv.revolver) { ctx.drawImage(A.bullet, x, 5); x += 6; x += G.text(ctx, String(S.bullets), x, 3, 'w', 's') + 4; }
   if (S.ore > 0) { ctx.drawImage(A.nugget, x, 5); x += 9; x += G.text(ctx, S.ore.toFixed(1), x, 3, 'Y', 's') + 4; }
+  G.drawMenuBtn(ctx);
 };
+// 화면 오른쪽 위 메뉴 버튼 (마우스·터치로 누름)
+G.MENU_BTN = { x: G.W - 40, y: 0, w: 40, h: 18 };
+G.drawMenuBtn = function (ctx) {
+  const b = G.MENU_BTN;
+  G.rect(ctx, b.x, 1, b.w - 1, 15, 'k'); G.rect(ctx, b.x + 1, 2, b.w - 3, 13, 'R'); G.rect(ctx, b.x + 1, 2, b.w - 3, 1, 'r');
+  for (let i = 0; i < 3; i++) G.rect(ctx, b.x + 5, 5 + i * 3, 7, 2, 'Y');
+  G.text(ctx, '메뉴', b.x + 14, 3, 'w', 's');
+};
+G.menuInput = function () {
+  const top = G.ui.top(); if (!top || !G.S) return;
+  const isWorld = top instanceof G.WorldScene, isSys = top instanceof G.SystemMenu;
+  const hudMenu = isWorld || (top instanceof G.Menu && top.hud);
+  if (isWorld && I.hit('menu')) { G.audio.sfx('ok'); G.ui.push(new G.SystemMenu()); return; }
+  const t = I.peekTap(), b = G.MENU_BTN;
+  if (hudMenu && t && t.x >= b.x && t.y < b.y + b.h + 2) {
+    I.taps.shift(); G.audio.sfx('ok');
+    if (isSys) G.ui.pop(); else G.ui.push(new G.SystemMenu());
+  }
+};
+
 
 // ---- 메뉴 장면 ----
 class Menu {
@@ -66,24 +87,32 @@ class Menu {
   getItems() { return typeof this.items === 'function' ? this.items() : this.items; }
   flash(msg, col = 'Y') { this.flashMsg = msg; this.flashCol = col; this.flashT = 3.2; }
   back() { G.audio.sfx('sel'); if (this.onBack) this.onBack(); else G.ui.pop(); }
+  setVal(it, v) { v = G.clamp(v, 0, 10); if (v !== it.val) { it.set(v); G.audio.sfx('sel'); } }
   activate(it) {
     if (!it) return;
+    if (it.val !== undefined && !it.act) { this.setVal(it, it.val >= 10 ? 0 : it.val + 1); return; }
     if (it.disabled) { G.audio.sfx('no'); if (it.why) this.flash(it.why, 'r'); return; }
     G.audio.sfx('sel'); it.act && it.act(this);
   }
   update(dt) {
     this.flashT -= dt;
-    const items = this.getItems(); if (!items.length) { if (I.hit('b') || I.hit('a')) this.back(); return; }
+    const items = this.getItems(); if (!items.length) { if (I.hit('b') || I.hit('menu') || I.hit('a')) this.back(); return; }
     if (this.cur >= items.length) this.cur = items.length - 1;
     if (I.hit('up')) { this.cur = (this.cur + items.length - 1) % items.length; G.audio.sfx('sel'); }
     if (I.hit('down')) { this.cur = (this.cur + 1) % items.length; G.audio.sfx('sel'); }
-    if (I.hit('a')) this.activate(items[this.cur]);
-    else if (I.hit('b')) this.back();
+    const it = items[this.cur];
+    if (it && it.val !== undefined) {
+      if (I.hit('left')) this.setVal(it, it.val - 1);
+      if (I.hit('right')) this.setVal(it, it.val + 1);
+    }
+    if (I.hit('a')) this.activate(it);
+    else if (I.hit('b') || I.hit('menu')) this.back();
     let t; while ((t = I.tap())) {
       for (const r of this.rows) if (t.x >= r.x && t.x < r.x + r.w && t.y >= r.y && t.y < r.y + r.h) {
-        this.cur = r.i; this.activate(items[r.i]); return;
+        this.cur = r.i; const x = items[r.i];
+        if (x.val !== undefined && t.x >= G.W - 134) { this.setVal(x, x.val + (t.x < G.W - 70 ? -1 : 1)); return; }
+        this.activate(x); return;
       }
-      if (this.upBtn && t.y >= this.upBtn.y && t.y < this.upBtn.y + 10 && t.x > 340) { this.cur = Math.max(0, this.scroll - 1); }
     }
   }
   draw(ctx) {
@@ -125,6 +154,13 @@ class Menu {
       const c = it.disabled ? 'h' : sel ? 'w' : 'm';
       G.text(ctx, it.label, 18, y, c, 'm');
       if (it.right) G.text(ctx, it.right, G.W - 12, y + 1, it.disabled ? 'h' : (it.rcol || 'Y'), 's', 'right');
+      if (it.val !== undefined) {
+        const bx = G.W - 128;
+        for (let j = 0; j < 4; j++) G.rect(ctx, bx + j, y + 5 - j, 1, 1 + j * 2, sel ? 'Y' : 'S');
+        for (let j = 0; j < 10; j++) G.rect(ctx, bx + 10 + j * 6, y + 1, 5, 9, j < it.val ? (sel ? 'Y' : 'o') : 'K');
+        for (let j = 0; j < 4; j++) G.rect(ctx, bx + 76 + (3 - j), y + 5 - j, 1, 1 + j * 2, sel ? 'Y' : 'S');
+        G.text(ctx, it.val === 0 ? '끔' : String(it.val), G.W - 12, y + 1, 'w', 's', 'right');
+      }
       this.rows.push({ x: 0, y: y - 1, w: G.W, h: 13, i });
     }
     if (this.scroll > 0) G.text(ctx, '▲', G.W - 12, ty - 12, 'Y', 's', 'right');
@@ -171,7 +207,7 @@ class Dialog {
       if (I.hit('a')) return this.choose(this.cur);
       let t; while ((t = I.tap())) for (const r of this.rows) if (t.y >= r.y && t.y < r.y + r.h && t.x >= r.x && t.x < r.x + r.w) return this.choose(r.i);
     } else {
-      if (I.hit('a') || I.hit('b') || I.tap()) this.next();
+      if (I.hit('a') || I.hit('b') || I.hit('menu') || I.tap()) this.next();
     }
   }
   draw(ctx) {
