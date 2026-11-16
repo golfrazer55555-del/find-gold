@@ -1,0 +1,16 @@
+{
+  "name": "사막의 황금",
+  "short_name": "사막의 황금",
+  "description": "1880년 서부 사막에서 전설의 금광을 찾는 도트 그래픽 생존 어드벤처",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#140c10",
+  "theme_color": "#3a2414",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
