@@ -8,12 +8,22 @@ cv.width = G.W; cv.height = G.H; ctx.imageSmoothingEnabled = false;
 G.resize = function () {
   const vw = window.innerWidth, vh = window.innerHeight, dpr = window.devicePixelRatio || 1;
   const touch = G.input.touchMode, portrait = vh > vw;
-  const availW = touch && !portrait ? Math.max(vw * 0.6, vw - 280) : vw, availH = touch && portrait ? vh - Math.min(260, vh * 0.38) : vh;
+  const availW = touch ? Math.max(vw * 0.6, vw - 280) : vw, availH = vh;
   let s = Math.min(availW * dpr / G.W, availH * dpr / G.H);
   if (s >= 2 && !touch) s = Math.floor(s);
   cv.style.width = (G.W * s / dpr) + 'px'; cv.style.height = (G.H * s / dpr) + 'px';
   document.body.classList.toggle('portrait', portrait);
+  G.rotateWait = touch && portrait;
 };
+// 모바일: 첫 터치 때 전체 화면 + 가로 고정 시도 (지원하는 기기에서만)
+G.lockLandscape = function () {
+  if (G.lockTried || !G.input.touchMode) return; G.lockTried = true;
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  const lock = () => { try { const p = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
+  try { const r = req && req.call(el); if (r && r.then) r.then(lock).catch(lock); else lock(); } catch (e) { lock(); }
+};
+document.addEventListener('pointerdown', () => G.lockLandscape(), { capture: true });
 window.addEventListener('resize', G.resize);
 window.addEventListener('orientationchange', () => setTimeout(G.resize, 200));
 
@@ -25,8 +35,8 @@ function frame(now) {
     if (G.pendingDeath && !(G.ui.top() instanceof G.GameOverScene)) {
       const c = G.pendingDeath; G.ui.reset(new G.GameOverScene(c)); G.pendingDeath = null; G.dead = true;
     }
-    G.ui.update(dt);
-    G.updateToasts(dt);
+    if (G.rotateWait) { G.input.taps.length = 0; G.input.pressed.clear(); }
+    else { G.ui.update(dt); G.updateToasts(dt); }
     ctx.fillStyle = '#140c10'; ctx.fillRect(0, 0, G.W, G.H);
     G.ui.draw(ctx);
   } catch (e) { console.error(e); }

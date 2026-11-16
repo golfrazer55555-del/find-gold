@@ -417,7 +417,12 @@ class BagScene extends G.Menu {
         { label: '야영하기 (8시간 잠)', disabled: G.inTown(S.x, S.y), why: '마을에서는 호텔을 이용하자.', act: () => this.camp() },
         { label: `소리: ${G.audio.on ? '켜짐' : '꺼짐'}`, act: () => { G.audio.on = !G.audio.on; G.opts.sound = G.audio.on; G.saveOpts(); } },
         { label: '조작법 · 도움말', act: () => G.showHelp() },
-        { label: '타이틀로 나가기', act: () => G.ask('타이틀로 나갈까? 마지막 저장 이후의 진행은 사라진다.', [{ label: '나간다', act: () => G.ui.reset(new TitleScene()) }, { label: '취소', act: () => {} }]) },
+        { label: '게임 저장하기', act: () => { if (G.save()) { G.audio.sfx('ok'); this.flash(`저장했다. (${G.day()}일 ${G.clock()})`); } else this.flash('저장에 실패했다. (브라우저 저장소를 확인하세요)', 'r'); } },
+        { label: '저장하고 나가기', act: () => {
+          if (!G.save()) { this.flash('저장에 실패했다. (브라우저 저장소를 확인하세요)', 'r'); return; }
+          G.audio.sfx('ok'); G.ui.reset(new TitleScene()); G.titleMsg = '저장했습니다. 「이어하기」로 계속할 수 있습니다.';
+        } },
+        { label: '저장하지 않고 나가기', act: () => G.ask('저장하지 않고 타이틀로 나갈까? 마지막 저장 이후의 진행은 사라진다.', [{ label: '나간다', act: () => G.ui.reset(new TitleScene()) }, { label: '취소', act: () => {} }]) },
         { label: '닫기', act: () => G.ui.pop() }
       ]
     });
@@ -512,7 +517,7 @@ class TitleScene {
     const has = G.hasSave();
     return [
       { label: '새 게임', act: () => G.startNew() },
-      { label: '이어하기', disabled: !has, act: () => { if (G.load()) { G.ui.reset(new WorldScene()); G.toast(`${G.day()}일째, 다시 사막으로.`, 'Y'); } } },
+      { label: has && G.saveInfo() ? `이어하기 (${G.saveInfo()})` : '이어하기', disabled: !has, act: () => { if (G.load()) { G.ui.reset(new WorldScene()); G.toast(`${G.day()}일째, 다시 사막으로.`, 'Y'); } } },
       { label: '조작법 · 도움말', act: () => G.showHelp() },
       { label: `소리: ${G.audio.on ? '켜짐' : '꺼짐'}`, act: () => { G.audio.on = !G.audio.on; G.opts.sound = G.audio.on; G.saveOpts(); if (!G.audio.on) G.audio.stopMusic(); else { G.audio.init(); G.audio.music('title'); } } }
     ];
@@ -553,8 +558,9 @@ class TitleScene {
       G.text(ctx, x.label, 192, y, x.disabled ? 'h' : sel ? 'Y' : 'm', 'm', 'center');
       this.rows.push({ y: y - 3, h: 17, i });
     });
-    G.text(ctx, '서부 생존 어드벤처', 6, G.H - 12, 'S', 's');
-    G.text(ctx, 'v1.0', G.W - 6, G.H - 12, 'S', 's', 'right');
+    if (G.titleMsg) { G.text(ctx, G.titleMsg, 192, G.H - 13, 'Y', 's', 'center'); if (this.t > 5) G.titleMsg = null; }
+    else G.text(ctx, '서부 생존 어드벤처', 6, G.H - 12, 'S', 's');
+    if (!G.titleMsg) G.text(ctx, 'v1.1', G.W - 6, G.H - 12, 'S', 's', 'right');
   }
 }
 function silhouette(src) { const c = G.canvas(16, 16); c.x.drawImage(src, 0, 0); c.x.globalCompositeOperation = 'source-in'; c.x.fillStyle = '#2a1010'; c.x.fillRect(0, 0, 16, 16); const o = G.canvas(16, 16); o.x.drawImage(G.spr(['.......kk.......', '......kgGk......', '......klGk......', '..kk..klGk.kk...', '.kgGk.klGk.klGk.', '.klGk.klGkkklGk.', '.klGkkklGGgglGk.', '.klGgggGlGGGGk..', '..kGGGGlGk......', '......klGk......', '......klGk......', '......klGk......', '......kgGk......', '......kkkk......', '................', '................'], { k: '#2a1010', g: '#2a1010', G: '#2a1010', l: '#2a1010' }), 0, 0); return o; }
@@ -574,12 +580,12 @@ G.startNew = function () {
 G.showHelp = function () {
   G.say([
     '【조작법 — 컴퓨터】\n이동: 방향키 / WASD\n행동·확인: 스페이스 / 엔터 / Z\n가방·뒤로: ESC / X / I\n사격: F / C   지도: M   재장전: R',
-    '【조작법 — 모바일】\n왼쪽 조이스틱으로 이동, 오른쪽 버튼(행동·가방·사격)을 누른다. 메뉴는 화면을 직접 탭해도 된다. 가로 화면을 추천한다.',
+    '【조작법 — 모바일】\n휴대폰을 가로로 들고, 왼쪽 조이스틱으로 이동, 오른쪽 버튼(행동·가방·사격)을 누른다. 메뉴는 화면을 직접 탭해도 된다.',
     '【생존】\n물은 시간이 지날수록 줄고, 더울수록 빨리 준다(화씨 100도 이상 주의). 물이나 식량이 바닥나면 체력이 줄어든다. 우물과 강에서 물을 채울 수 있다.',
     '【돈 벌기】\n살롱 포커, 강가 사금 채취(팬), 광산 채굴(곡괭이), 강도 현상금. 금 원석은 시금소에서 판다. 강도에게 털리지 않게 은행에 맡기자.',
     '【위험】\n방울뱀에 물리면 독 — 해독제나 의사 치료가 없으면 죽는다. 강도는 리볼버로 맞서거나, 도망치거나, 돈을 내준다. 광산은 무너질 수 있다.',
     '【지도 조각】\n6개의 뼈 지도 조각: 포커(2), 버려진 광산 깊은 곳(2, 랜턴 필요), 늙은 탐광자(1), 검은 모자 갱단 두목(1). 조각이 많을수록 지도의 붉은 원이 좁아진다.',
-    '【기타】\n마을 건물은 대부분 08~18시 영업. 호텔에서 자면 저장된다. 건물에 들어갈 때도 자동 저장된다. 죽으면 마지막 저장에서 다시 시작한다.'
+    '【저장】\n가방 메뉴의 「게임 저장하기」「저장하고 나가기」로 언제든 저장할 수 있다. 호텔에서 잘 때와 건물에 들어갈 때도 자동 저장된다. 죽으면 마지막 저장에서 다시 시작한다.\n마을 건물은 대부분 08~18시 영업.'
   ]);
 };
 

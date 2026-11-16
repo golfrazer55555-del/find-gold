@@ -34,10 +34,17 @@ body.touch #touch { display: block; }
 #btns [data-k="b"] { right: 88px; bottom: 0; }
 #btns [data-k="c"] { right: 70px; bottom: 82px; }
 
-/* 세로 화면: 게임은 위, 조작은 아래 */
-body.touch.portrait #wrap { align-items: flex-start; padding-top: max(10px, env(safe-area-inset-top)); }
-body.touch.portrait #joy { width: 150px; height: 150px; bottom: max(28px, env(safe-area-inset-bottom)); left: 24px; }
-body.touch.portrait #btns { bottom: max(28px, env(safe-area-inset-bottom)); right: 20px; }
+/* 세로 화면(모바일): 가로로 돌리라는 안내 */
+#rotate {
+  position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; align-items: center; justify-content: center;
+  background: #140c10; color: #f6f0dc; text-align: center; gap: 6px;
+}
+#rotate p { font-size: 20px; margin: 18px 0 0; } #rotate b { color: #f8d838; font-weight: normal; }
+#rotate small { font-size: 13px; color: #b98445; }
+#rotate .phone { width: 54px; height: 90px; border: 4px solid #f8d838; border-radius: 8px; animation: turn 2s ease-in-out infinite; }
+@keyframes turn { 0%, 25% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+body.touch.portrait #rotate { display: flex; }
+body.touch.portrait #touch { display: none; }
 
 /* 가로 화면 터치: 반투명하게 */
 body.touch:not(.portrait) #joy { opacity: .8; }

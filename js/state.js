@@ -123,6 +123,9 @@ G.save = function () {
     localStorage.setItem(SAVE_KEY, JSON.stringify(o)); return true;
   } catch (e) { return false; }
 };
+G.saveInfo = function () {
+  try { const o = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!o) return ''; const m = o.t % 1440; return `${Math.floor(o.t / 1440) + 1}일 ${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; } catch (e) { return ''; }
+};
 G.hasSave = () => { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } };
 G.load = function () {
   try {
