@@ -476,9 +476,13 @@ G.slotMenu = function (mode, hud) {
   });
   return m;
 };
-G.settingsMenu = () => new G.Menu({
+G.settingsMenu = withNewGame => new G.Menu({
   title: '설정', hud: false, text: '좌우 방향키(또는 ◀ ▶ 탭)로 소리 크기를 조절한다.',
-  items: () => volItems().concat([{ label: '돌아가기', act: () => G.ui.pop() }])
+  items: () => volItems()
+    .concat(withNewGame && G.hasSave() ? [{ label: '새 게임 시작하기', rcol: 'r', right: '처음부터', act: () => G.ask(
+      '정말 새 게임을 시작할까?\n저장 슬롯은 지워지지 않지만, 새 게임에서 호텔에 묵거나 건물에 들어가면 「자동 저장」은 새 게임으로 덮어써진다.',
+      [{ label: '취소', act: () => {} }, { label: '새 게임 시작', act: () => G.startNew() }]) }] : [])
+    .concat([{ label: '돌아가기', act: () => G.ui.pop() }])
 });
 class SystemMenu extends G.Menu {
   constructor() {
@@ -564,15 +568,19 @@ G.MapScene = MapScene;
 // =============== 타이틀 ===============
 class TitleScene {
   constructor() { this.opaque = true; this.cur = 0; this.t = 0; this.rows = []; this.music = false; }
-  enter() { this.music = false; }
+  enter() { this.music = false; this.cur = 0; }
   exit() { G.audio.stopMusic(); }
   items() {
-    const has = G.hasSave();
+    // 저장된 게임이 있으면 「이어하기」를 맨 위에 두고, 「새 게임」은 설정 안에 숨긴다 (실수 방지)
+    if (G.hasSave()) return [
+      { label: `이어하기 (${G.saveInfo()})`, act: () => G.loadAndPlay(G.latestSlot()) },
+      { label: '불러오기', act: () => G.ui.push(G.slotMenu('load', false)) },
+      { label: '설정', act: () => G.ui.push(G.settingsMenu(true)) },
+      { label: '조작법 · 도움말', act: () => G.showHelp() }
+    ];
     return [
       { label: '새 게임', act: () => G.startNew() },
-      { label: has ? `이어하기 (${G.saveInfo()})` : '이어하기', disabled: !has, act: () => G.loadAndPlay(G.latestSlot()) },
-      { label: '불러오기', disabled: !has, act: () => G.ui.push(G.slotMenu('load', false)) },
-      { label: '설정 (소리 크기)', act: () => G.ui.push(G.settingsMenu()) },
+      { label: '설정', act: () => G.ui.push(G.settingsMenu(false)) },
       { label: '조작법 · 도움말', act: () => G.showHelp() }
     ];
   }
